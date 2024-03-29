@@ -1,10 +1,10 @@
 name: Lemonade CI Builds
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
-  pull_request:
 
 jobs:
     windows:
@@ -106,8 +106,6 @@ jobs:
         matrix:
           build_type:
             - release
-      env:
-        CCACHE_DIR: ${{ github.workspace }}/.ccache
 
       steps:
       - name: Set BUILD_TYPE variable
@@ -123,20 +121,15 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-            ${{ env.CCACHE_DIR }}
           key: ${{ runner.os }}-android-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-android-
 
-        env:
-           SEGMENT_DOWNLOAD_TIMEOUT_MINS: '1'
-           
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
-          cache: 'gradle'
 
       - name: Deps
         run: |
@@ -144,11 +137,14 @@ jobs:
             sudo apt-get update -y
             sudo apt-get install ccache glslang-dev glslang-tools apksigner -y
 
+      - name: Configure CMake
+        run: cmake -B ${{github.workspace}}/build -DENABLE_SDL2=OFF -DENABLE_SDL2_FRONTEND=OFF -DENABLE_QT=OFF
+
       - name: Build
         run: |
-          chmod +x ./.ci/export.sh
-          ./.ci/export.sh
-          
+          # Build the project with CMake
+          cmake --build ${{github.workspace}}/build --config ${{ env.BUILD_TYPE }}
+
           # Build the Android app with Gradle
           cd src/android
           ./gradlew assemble${{ env.BUILD_TYPE }}
@@ -161,4 +157,3 @@ jobs:
           name: Android-APK
           path: |
             ./src/android/app/build/outputs/apk/canary/${{ env.BUILD_TYPE }}/app-canary-${{ env.BUILD_TYPE }}.apk
-
